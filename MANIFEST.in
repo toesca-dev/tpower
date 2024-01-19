@@ -1,0 +1,2 @@
+exclude secrets.py
+exclude .gitignore
