@@ -2,8 +2,6 @@ import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-from core import make_api_call, get_15min_readings
-
 def get_coordinados(client):
     """ 
     Get all "coordinados" in the PRMTE database. 
