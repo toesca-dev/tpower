@@ -13,7 +13,7 @@ setup(
     long_description_content_type='text/markdown',
     author='Matías Galetovic Streeter',
     author_email='matias.galetovic@toesca.com',
-    url='https://github.com/yourusername/tpower',
+    url='https://github.com/toesca-dev/tpower/tree/master/prmte',
     install_requires=[
         'requests', 'logging', 'pandas', 'datetime', 'dateutils'
     ],

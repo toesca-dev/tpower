@@ -114,3 +114,6 @@ dmypy.json
 
 # secrets.py
 secrets.py
+
+# .pypirc
+.pyirc
