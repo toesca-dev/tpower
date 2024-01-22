@@ -2,7 +2,9 @@ import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-def get_coordinados(client):
+from core import PRMTEClient
+
+def get_coordinados(client: PRMTEClient):
     """ 
     Get all "coordinados" in the PRMTE database. 
     
@@ -17,7 +19,7 @@ def get_coordinados(client):
     """
     return client.make_api_call('coordinados')
 
-def get_canales(client):
+def get_canales(client: PRMTEClient):
     """ 
     Get all available channels in a standard PRMTE meter.
 
@@ -29,7 +31,7 @@ def get_canales(client):
     """
     return client.make_api_call('canales')
 
-def get_puntomedidas(client, idCoordinado):
+def get_puntomedidas(client: PRMTEClient, idCoordinado: str):
     """ 
     Get all measure points associated to a single idCoordinado.
 
@@ -52,7 +54,7 @@ def get_puntomedidas(client, idCoordinado):
     """
     return client.make_api_call('puntomedidas', params={'idCoordinado': idCoordinado})
 
-def get_measurements(client, idPuntoMedida, period, end_period=None, granularity='1H', df_format='consolidated'):
+def get_measurements(client: PRMTEClient, idPuntoMedida: str, period: str, end_period=None, granularity='1H', df_format='consolidated'):
     """ 
     Get all measurements for a single measurement point, given a period and optionally an end period.
 
@@ -73,7 +75,7 @@ def get_measurements(client, idPuntoMedida, period, end_period=None, granularity
     pass
     
 
-def get_historic_measurements(client, idPuntoMedida, broken_periods=[], granularity='1H', df_format='consolidated'):
+def get_historic_measurements(client: PRMTEClient, idPuntoMedida: str, broken_periods=[], granularity='1H', df_format='consolidated'):
     """
     Get all measurements up until the last measurement available. 
 
@@ -97,7 +99,7 @@ def get_historic_measurements(client, idPuntoMedida, broken_periods=[], granular
 
     while True:
         period = (now - relativedelta(months=i)).strftime("%Y%m"); i += 1
-        records, last_reading = client.get_15min_readings('COCHRCAS_013_PMGD4_PSE', period)
+        records, last_reading = client.get_15min_readings(idPuntoMedida, period)
 
         if not records:
             if period in broken_periods: continue 
