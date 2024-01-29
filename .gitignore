@@ -117,3 +117,12 @@ secrets.py
 
 # .pypirc
 .pyirc
+
+# Files not to be included in release 
+gpm/old.py
+#gpm/test_data/
+
+#*.ipynb
+*test*
+
+.pypirc

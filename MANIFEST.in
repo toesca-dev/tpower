@@ -1,2 +1,8 @@
 exclude secrets.py
 exclude .gitignore
+
+exclude gpm/old.py
+exclude gpm/test_data
+exclude gpm/test.ipynb
+
+exclude prmte/test.ipynb

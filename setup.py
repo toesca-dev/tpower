@@ -5,7 +5,7 @@ setup(
     version='0.1.0',
     packages=find_packages(),
     include_package_data=True,
-    description='Python package by T-Power. \
+    description='Python package by T-Power. \n\
         Interfaces with CEN API (https://www.coordinador.cl/desarrollo/documentos/actualizaciones-del-sistema-de-informacion-publica/api-publica-del-sip/), \
         Sistema de Medidas del Mercado Eléctrico Chileno - PRMTE (https://medidas.coordinador.cl/), \
         Green Power Monitor SCADA API (https://www.greenpowermonitor.com/gpm-scada/)',

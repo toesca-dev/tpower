@@ -1,22 +1,91 @@
 import requests
 import logging
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from data import format_last_data
+from dates import expected_measurement_count, split_dates_in_half
 
 class GPMClient:
     BASE_URL = 'https://webapisungrow.horizon.greenpowermonitor.com'
 
-    def __init__(self, username, password):
+    def __init__(self, username=None, password=None, plant_ids=None, concepts=None, datasources=None):
         self.headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
         self.credentials = {
             'username': username or os.environ.get('GPM_API_USERNAME'),
-            'password': password os.environ.get('GPM_API_PASSWORD')
+            'password': password or os.environ.get('GPM_API_PASSWORD')
         }
-        
+
         if not self.credentials['username'] or not self.credentials['password']:
-            raise ValueError("GPM API authentication parameters must be provided or set as environment variables 'GPM_API_USERNAME' and 'GPM_API_PASSWORD'")
+            raise ValueError("GPM API credentials must be provided or set as environment variables 'GPM_API_USERNAME' and 'GPM_API_PASSWORD'")
         
         self.authenticate()
+
+        self.plant_ids = plant_ids
+        self.concepts = concepts
+        self.datasources = datasources
+
+    def filter_datasourceids(self, datasourceids=None, plant_id=None, concept=None):
+        """
+        Used to filter the DataSourceIds to fetch. Can pass either a list or dictionary
+        
+        """
+        data_dict = self.datasources
+        if datasourceids is None and plant_id is None and concept is None:
+            all_datasources = []
+            for plant in data_dict.values():
+                for datasources in plant.values():
+                    all_datasources.extend(datasources)
+            return list(set(all_datasources))
+        
+        result = []
+
+        if datasourceids:
+            if isinstance(datasourceids, list):
+                return datasourceids 
+            elif isinstance(datasourceids, dict):
+                for item in data_dict.values():
+                    for key, value in item.items():
+                        if key in datasourceids:
+                            result.extend(value)
+            
+        elif isinstance(plant_id, (int, list)) and not concept:
+            if isinstance(plant_id, int):
+                plant_id = [plant_id]
+            for pid in plant_id:
+                for item in data_dict.get(pid, {}).values():
+                    result.extend(item)
+        
+        elif isinstance(concept, (str, list)) and not plant_id:
+            if isinstance(concept, str):
+                concept = [concept]
+            for item in data_dict.values():
+                for key, value in item.items():
+                    if key in concept:
+                        result.extend(value)
+        
+        elif plant_id and concept:
+            if isinstance(plant_id, list) and isinstance(concept, list):
+                for pid in plant_id:
+                    for c in concept:
+                        item = data_dict.get(pid, {}).get(c, [])
+                        result.extend(item)
+
+            elif isinstance(plant_id, int) and isinstance(concept, str):
+                item = data_dict.get(plant_id, {}).get(concept, [])
+                result.extend(item)
+
+            elif isinstance(plant_id, int) and isinstance(concept, list):
+                for c in concept:
+                    item = data_dict.get(plant_id, {}).get(c, [])
+                    result.extend(item)
+
+            elif isinstance(plant_id, list) and isinstance(concept, str):
+                for pid in plant_id:
+                    item = data_dict.get(pid, {}).get(concept, [])
+                    result.extend(item)
+
+        return result
 
     def authenticate(self):
         """
@@ -27,6 +96,7 @@ class GPMClient:
         if response.status_code == 200:
             res = response.json()
             self.headers['Authorization'] = 'Bearer ' + res['AccessToken']
+            logging.info(f'[GPM]: Authentication successful')
         else:
             logging.error(f'[GPM]: Failed to authenticate user. Status code: {response.status_code}')
 
@@ -49,7 +119,7 @@ class GPMClient:
             else:
                 response = requests.get(url, headers=self.headers, params=data)
 
-            if response.status_code in [200, 216]:
+            if response.status_code in [200, 206]:
                 return response.json()
             elif response.status_code == 416:
                 return 416
@@ -60,6 +130,111 @@ class GPMClient:
         except Exception as e:
             logging.error(f'[GPM]: Exception in API call: {e}')
             return None
+        
+    def get_plant_information(self):
+        """ 
+        Get all plants associated to the API user and store PlantIds in a list.
+        
+        Returns:
+            A list of dictionaries, each containing plant specific information.
+        """
+        res = self.make_api_call('/api/Plant', None)
+        self.plant_ids = [plant['Id'] for plant in res]
+        return res 
+    
+    def get_plant_elements(self, plant_id):
+        """
+        Get all elements associated to a specific PlantId.
+
+        Args:
+            plant_id (int): plant identifier (unique for each plant the user has access to)
+
+        Returns:
+            A list of dictionaries, each containing an element object.
+        """
+        res = self.make_api_call(f'/api/Plant/{plant_id}/Element', None)
+        return res 
+    
+    def get_plant_datasources(self, plant_id):
+        """
+        Get all DataSources associated to a specific PlantId.
+
+        Args:
+            plant_id (int): plant identifier (unique for each plant the user has access to)
+
+        Returns:
+            A list of dictionaries, each containing a DataSource object.
+        """
+        res = self.make_api_call(f'/api/Plant/{plant_id}/Datasource', None)
+        return res
+    
+    def get_plant_kpis(self, plant_id):
+        """
+        Get all KPIs associated to a specific PlantId.
+
+        Args:
+            plant_id (int): plant identifier (unique for each plant the user has access to)
+
+        Returns:
+            A list of dictionaries, each containing a KPI object.
+        """
+        res = self.make_api_call(f'/api/Plant/{plant_id}/KPI', None)
+        return res
+    
+    def get_last_data(self, plant_id, datasourceids, tuples=False):
+        """
+        Gets last available measurements for the given DataSourceIds.
+
+        Args:
+            plant_id (int): plant identifier (unique for each plant the user has access to)
+            datasourceids (list or dict): DataSourceIds to filter
+
+        Returns:
+            If 'datasourceids' is a list, it returns a list of records as per the 'format_last_data' 
+            function in the data package. Else, if it's a dictionary containing DataSourceId lists 
+            separated per concept, it returns a dictionary of measurements separated per concept.
+        """
+        res = self.make_api_call(f'/api/Plant/{plant_id}/LastData', None) 
+
+        # TO DO: handle different errors
+        if not res: return
+
+        if type(datasourceids) == list:
+            formatted_data = format_last_data(res, datasourceids, tuples=tuples)
+        elif type(datasourceids) == dict:
+            formatted_data = {}
+            for concept, ds_ids in datasourceids.items():
+                formatted_data[concept] = format_last_data(res, ds_ids, tuples=tuples)
+        return formatted_data
+    
+    def get_last_data_for_all_plants(self):
+        """
+        Gets last available measurement for all DataSources and all plants. The 'self.datasources' object 
+        must be initialized as a dictionary of the form:
+
+            { plant_id: { 'concept': [datasource_ids] } }
+
+        Returns:
+            A dictionary containing all measurements per concept, PlantId. It has the form:
+
+                { plant_id: { 'concept': [{'DataSourceId', 'Date', 'Value'}, ...] } }
+        
+        """
+        data = {plant_id: {concept: [] for concept in self.concepts} for plant_id in self.plant_ids}
+
+        with ThreadPoolExecutor() as executor:
+            futures = {executor.submit(self.get_last_data, plant_id, self.datasources[plant_id]): plant_id for plant_id in self.plant_ids}
+
+            for future in as_completed(futures):
+                plant_id = futures[future]
+                try:
+                    result = future.result()
+                    for key in result:
+                        data[plant_id][key].extend(result[key])
+                except Exception as exc:
+                    print(f'PlantId {plant_id} generated an exception: {exc}')
+
+        return data
 
     def get_data_list(self, datasources, start_date, end_date, grouping='minute', granularity=1):
         """ 
@@ -90,19 +265,15 @@ class GPMClient:
             'dataSourceIds': ','.join(map(str, datasources))
         }
 
-        response = self.make_api_call('/api/DataList/v2', params)
+        res = self.make_api_call('/api/DataList/v2', params)
 
-        # HTTP 416 - Range not satisfiable
-        if response == 416:
-            start_datetime = datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S')
-            end_datetime = datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S')
-            midpoint = start_datetime + (end_datetime - start_datetime) / 2
-            midpoint_str = midpoint.strftime('%Y-%m-%dT%H:%M:%S')
-            first_half = self.get_data_list(datasources, start_date, midpoint_str, grouping, granularity)
-            second_half = self.get_data_list(datasources, midpoint_str, end_date, grouping, granularity)
+        if res == 416: # HTTP 416 - Range not satisfiable
+            midpoint = split_dates_in_half(start_date, end_date)
+            first_half = self.get_data_list(datasources, start_date, midpoint, grouping, granularity)
+            second_half = self.get_data_list(datasources, midpoint, end_date, grouping, granularity)
             return first_half + second_half if first_half and second_half else []
         
-        return response
+        return res
 
     def get_data_list_in_batches(self, datasources, start_date, end_date, grouping='minute', granularity=5, max_retries=3):
         """ 
@@ -126,27 +297,7 @@ class GPMClient:
                     "Date": "2024-01-22T15:00:00.753Z",
                     "Value": 55.43
                 }
-        """
-        def get_expected_count(start_date, end_date, grouping, granularity):
-            """ 
-            Get expected number of data points depending on the grouping and granularity chosen.
-            """
-            start_datetime = datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S')
-            end_datetime = datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S')
-            delta = end_datetime - start_datetime
-
-            if grouping == 'minute':
-                total_minutes = delta.total_seconds() / 60
-                return total_minutes / granularity
-            elif grouping == 'hour':
-                total_hours = delta.total_seconds() / 3600
-                return total_hours / granularity
-            elif grouping == 'day':
-                total_days = delta.days
-                return total_days / granularity
-            else:
-                return 0
-            
+        """ 
         def fetch_data(sources):
             """
             Fetches data in parrallel, batching all DataSourceIds into a maximum of 10 per call (API internal limit).
@@ -166,7 +317,7 @@ class GPMClient:
             return combined
 
         # Expected number of datapoints for each DataSourceId
-        expected_count = get_expected_count(start_date, end_date, grouping, granularity)
+        expected_count = expected_measurement_count(start_date, end_date, grouping, granularity)
 
         retry_count = 0
         complete_data = []
