@@ -4,8 +4,8 @@ from datetime import datetime
 from core import GPMClient 
 from dates import get_missing_dates
 
-def initialize_client(client: GPMClient, plants_filename: str, total_filename: str, inverter_filename: str,
-                      tracker_filename: str, concepts=['total, inverter, tracker'], username=None, password=None):
+def initialize_client(plants_filename: str, total_filename: str, inverter_filename: str, tracker_filename: str,
+                      concepts=['total, inverter, tracker'], username=None, password=None):
     """
     Initializes GPM client with all relevant Plant and DataSource information. 
     """
