@@ -38,8 +38,8 @@ def initialize_client(plants_filename: str, total_filename: str, inverter_filena
 
     return gpm
 
-def get_data_for_range(client: GPMClient, start_date: [str, datetime.datetime], end_date: [str, datetime.datetime],
-    datasourceids=None, plant_id=None, concept=None, grouping='minute', granularity=1, existing_df=None, return_df=False):
+def get_data_for_range(client: GPMClient, start_date, end_date, datasourceids=None, plant_id=None, concept=None,
+                       grouping='minute', granularity=1, existing_df=None, return_df=False):
     """ 
     Simple wrapper function that uses "GPMClient.get_data_list_in_batches" to fetch measurements for a given date range.
     
