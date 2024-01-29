@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-from core import PRMTEClient
+from .core import PRMTEClient
 
 def get_coordinados(client: PRMTEClient):
     """ 

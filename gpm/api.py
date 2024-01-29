@@ -1,8 +1,8 @@
 import pandas as pd 
 from datetime import datetime 
 
-from core import GPMClient 
-from dates import get_missing_dates
+from .core import GPMClient 
+from .dates import get_missing_dates
 
 def initialize_client(plants_filename: str, total_filename: str, inverter_filename: str, tracker_filename: str,
                       concepts=['total, inverter, tracker'], username=None, password=None):

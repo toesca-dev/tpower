@@ -3,8 +3,8 @@ import logging
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from data import format_last_data
-from dates import expected_measurement_count, split_dates_in_half
+from .data import format_last_data
+from .dates import expected_measurement_count, split_dates_in_half
 
 class GPMClient:
     BASE_URL = 'https://webapisungrow.horizon.greenpowermonitor.com'
