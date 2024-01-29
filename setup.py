@@ -5,15 +5,12 @@ setup(
     version='0.1.0',
     packages=find_packages(),
     include_package_data=True,
-    description='Python package by T-Power. \n\
-        Interfaces with CEN API (https://www.coordinador.cl/desarrollo/documentos/actualizaciones-del-sistema-de-informacion-publica/api-publica-del-sip/), \
-        Sistema de Medidas del Mercado Eléctrico Chileno - PRMTE (https://medidas.coordinador.cl/), \
-        Green Power Monitor SCADA API (https://www.greenpowermonitor.com/gpm-scada/)',
+    description='Python package by T-Power.'
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     author='Matías Galetovic Streeter',
     author_email='matias.galetovic@toesca.com',
-    url='https://github.com/toesca-dev/tpower/tree/master/prmte',
+    url='https://github.com/toesca-dev/tpower/',
     install_requires=[
         'requests', 'logging', 'pandas', 'datetime', 'dateutils'
     ],
