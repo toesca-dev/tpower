@@ -4,8 +4,22 @@ import requests
 import numpy as np
 
 class PRMTEClient:
-    BASE_URL = "https://mercados.api.coordinador.cl/medidas/api/"
-    ENDPOINTS = ['canales', 'coordinados', 'puntomedidas', 'medidas']
+    """Simple wrapper for the public PRMTE API."""
+
+    # New API endpoints are now served under ``medidas.api.coordinador.cl``
+    # using the ``medidas-v2`` path.  Older endpoints are still kept for
+    # backwards compatibility.
+    BASE_URL = "https://medidas.api.coordinador.cl/medidas-v2/"
+
+    # Known endpoints.  ``measurement`` is the new endpoint that replaces the
+    # old ``medidas`` service.
+    ENDPOINTS = [
+        'canales',
+        'coordinados',
+        'puntomedidas',
+        'medidas',
+        'measurement',
+    ]
 
     def __init__(self, api_key=None):
         self.api_key = api_key or os.environ.get('PRMTE_API_KEY')
@@ -96,3 +110,48 @@ class PRMTEClient:
         reactiva = np.array([medida['canalVal4'] - medida['canalVal2'] if medida['canalVal4'] != None and medida['canalVal2'] != None else np.nan for medida in res[0]['mediciones']])
         nan_values = np.isnan(activa).any() | np.isnan(reactiva).any()
         return nan_values, last_reading, np.nansum(activa), np.nansum(reactiva)
+
+    def get_measurements(self, measure_point_id, period, end_period=None):
+        """Fetch raw measurements using the new ``measurement`` endpoint.
+
+        Parameters
+        ----------
+        measure_point_id : str
+            Identifier of the measurement point.
+        period : str
+            Starting period in ``YYYYMMDDhhmm`` format.
+        end_period : str, optional
+            If provided, the API will return measurements for the range
+            ``period`` - ``end_period``.
+
+        Returns
+        -------
+        Tuple[list, str]
+            List of tuples ``(measurePointId, channelId, date, value)`` and
+            the last reading timestamp provided by the API.  Returns an empty
+            list if no data is returned.
+        """
+
+        params = {
+            'measurePointId': measure_point_id,
+            'period': period,
+        }
+        if end_period:
+            params['endPeriod'] = end_period
+
+        res = self.make_api_call('measurement', params=params)
+        if not res:
+            return [], None
+
+        records = []
+        last_reading = None
+        for series in res:
+            last_reading = series.get('lastReadingDate')
+            for measurement in series.get('measurement', []):
+                ts = measurement['dateRange']
+                for ch in series.get('channel', []):
+                    cid = ch['channelId']
+                    val = measurement.get(f'channel{cid}', 0)
+                    records.append((series['measurePointId'], cid, ts, val))
+
+        return records, last_reading
