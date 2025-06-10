@@ -1,6 +1,6 @@
 import pandas as pd 
 
-def transform_records(records, format='consolidated'):
+def transform_records(records, last_reading=None, format='consolidated'):
     """
     Transforms records coming from the 'get_15min_readings' method from PRMTEClient class in core package. 
 
@@ -20,7 +20,10 @@ def transform_records(records, format='consolidated'):
     """
     df = pd.DataFrame(records, columns=['idPuntoMedida', 'canalVal', 'date', 'value'])
     df['date'] = pd.to_datetime(df['date'])
-    df = df.set_index('date').sort_index().loc[:last_reading].reset_index()
+    if last_reading:
+        df = df.set_index('date').sort_index().loc[:last_reading].reset_index()
+    else:
+        df = df.set_index('date').sort_index().reset_index()
     
     # By default withdrawls are negative values indicating the direction of energy flow
     df['value'] = df.apply(lambda row: -row['value'] if row['canalVal'] == 1 else row['value'], axis=1)
@@ -32,7 +35,15 @@ def transform_records(records, format='consolidated'):
         df.set_index('date', inplace=True)
 
     elif format == 'columns':
-        df = df.pivot_table(index=['idPuntoMedida', 'date'], columns='canalVal', values='value', fill_value=0).reset_index()
+        df = (
+            df.pivot_table(
+                index=['idPuntoMedida', 'date'],
+                columns='canalVal',
+                values='value',
+                fill_value=0,
+            )
+            .reset_index()
+        )
         df.rename(columns={1: 'Retiros', 3: 'Inyecciones'}, inplace=True)
 
     return df
